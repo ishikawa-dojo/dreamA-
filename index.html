@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#2563eb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="運動タイマー">
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<title>dreamA ワークアウトタイマー</title>
+<style>
+:root{--bg:#f4f5f7;--card:#fff;--tx:#14171c;--sub:#6b7280;--line:#e2e5ea;--accent:#2563eb;--c-prep:#d97706;--c-work:#16a34a;--c-rest:#2563eb;--c-setrest:#7c3aed;--c-cool:#0891b2;--c-done:#475569;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0e1116;--card:#181c23;--tx:#f1f3f6;--sub:#9aa3b2;--line:#2a303a;--accent:#60a5fa}}
+:root[data-theme="dark"]{--bg:#0e1116;--card:#181c23;--tx:#f1f3f6;--sub:#9aa3b2;--line:#2a303a;--accent:#60a5fa}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:var(--bg);color:var(--tx);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",system-ui,sans-serif}
+body{max-width:480px;margin:0 auto;padding:16px}
+h1{font-size:18px;margin:4px 0 14px;display:flex;justify-content:space-between;align-items:center}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:6px 14px;margin-bottom:14px}
+.row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border:0}
+.row label{font-size:15px}
+.step{display:flex;align-items:center;gap:10px}
+.step button{width:36px;height:36px;border-radius:50%;border:1px solid var(--line);background:var(--bg);color:var(--tx);font-size:20px;line-height:1}
+.step output{min-width:58px;text-align:center;font-size:18px;font-variant-numeric:tabular-nums;font-weight:600}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:10px}
+.chips button{flex:none;padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--card);color:var(--tx);font-size:14px}
+.total{text-align:center;color:var(--sub);font-size:14px;margin:4px 0 12px}
+.big{width:100%;padding:16px;border:0;border-radius:14px;background:var(--accent);color:#fff;font-size:18px;font-weight:700}
+#run{display:none;position:fixed;inset:0;z-index:5;flex-direction:column;color:#fff;background:var(--c-prep);transition:background .3s;padding:calc(env(safe-area-inset-top,0px) + 12px) 16px calc(env(safe-area-inset-bottom,0px) + 16px)}
+#run .ghost{color:rgba(255,255,255,.85)}
+#stage{flex:1;display:flex;flex-direction:column;justify-content:center;text-align:center;min-height:0}
+#phase{font-size:clamp(24px,7vw,44px);font-weight:700;letter-spacing:.05em}
+#time{font-size:min(30vw,38vh);font-weight:800;font-variant-numeric:tabular-nums;line-height:1.1;margin:10px 0}
+#info{font-size:clamp(16px,4.5vw,28px);opacity:.9}
+#bar{height:6px;background:rgba(255,255,255,.3);border-radius:3px;margin:18px 4px 0;overflow:hidden}
+#bar i{display:block;height:100%;width:0;background:#fff}
+#next{text-align:center;color:rgba(255,255,255,.85);margin:10px 0 14px;font-size:clamp(14px,3.8vw,20px);min-height:20px}
+.ctl{display:flex;gap:12px;justify-content:center;align-items:center}
+.ctl button{width:64px;height:64px;border-radius:50%;border:1px solid var(--line);background:var(--card);color:var(--tx);font-size:22px}
+.ctl button#pp{width:84px;height:84px;background:#fff;color:#111;border:0;font-size:30px}
+.ghost{background:none;border:0;color:var(--sub);font-size:14px;padding:6px}
+</style>
+</head>
+<body>
+<h1>⏱ ワークアウトタイマー <button class="ghost" id="snd">🔔 音:ON</button></h1>
+
+<section id="setup">
+  <div class="chips" id="presets"></div>
+  <div class="card" id="fields"></div>
+  <div class="total" id="total"></div>
+  <button class="big" id="start">スタート</button>
+</section>
+
+<section id="run">
+  <div id="stage">
+    <div id="phase">準備</div>
+    <div id="time">00:10</div>
+    <div id="info"></div>
+    <div id="bar"><i></i></div>
+  </div>
+  <div id="next"></div>
+  <div class="ctl">
+    <button id="prev" aria-label="前へ">⏮</button>
+    <button id="pp" aria-label="一時停止">⏸</button>
+    <button id="skip" aria-label="次へ">⏭</button>
+  </div>
+  <div style="text-align:center;margin-top:18px"><button class="ghost" id="stop">■ 終了して設定に戻る</button></div>
+</section>
+
+<script>
+const F=[["prep","準備",10,0,600,5],["work","運動",30,1,3600,5],["rest","休憩",10,0,3600,5],["rounds","ラウンド数",8,1,99,1],["sets","セット数",1,1,99,1],["setrest","セット間休憩",60,0,3600,5],["cool","クールダウン",0,0,3600,5]];
+const P={"タバタ":{prep:10,work:20,rest:10,rounds:8,sets:1,setrest:60,cool:0},"HIIT":{prep:10,work:40,rest:20,rounds:10,sets:1,setrest:60,cool:30},"ボクシング":{prep:10,work:180,rest:60,rounds:12,sets:1,setrest:0,cool:0},"ストレッチ":{prep:5,work:30,rest:5,rounds:10,sets:1,setrest:0,cool:0}};
+const COL={prep:"準備",work:"運動",rest:"休憩",setrest:"セット間休憩",cool:"クールダウン",done:"完了"};
+const $=id=>document.getElementById(id);
+let cfg={};F.forEach(f=>cfg[f[0]]=f[2]);
+try{Object.assign(cfg,JSON.parse(localStorage.getItem("wt-cfg")||"{}"))}catch(e){}
+let sound=true;try{sound=localStorage.getItem("wt-snd")!=="0"}catch(e){}
+const fmt=s=>{s=Math.max(0,Math.ceil(s));return String(Math.floor(s/60)).padStart(2,"0")+":"+String(s%60).padStart(2,"0")};
+const isTime=k=>!["rounds","sets"].includes(k);
+
+function save(){try{localStorage.setItem("wt-cfg",JSON.stringify(cfg))}catch(e){}}
+function render(){
+  $("fields").innerHTML="";
+  F.forEach(([k,l,,mn,mx,st])=>{
+    const r=document.createElement("div");r.className="row";
+    r.innerHTML=`<label>${l}</label><div class="step"><button data-d="-1">−</button><output>${isTime(k)?fmt(cfg[k]):cfg[k]}</output><button data-d="1">＋</button></div>`;
+    r.querySelectorAll("button").forEach(b=>b.onclick=()=>{cfg[k]=Math.min(mx,Math.max(mn,cfg[k]+st*b.dataset.d));save();render()});
+    $("fields").appendChild(r);
+  });
+  const t=build().reduce((a,s)=>a+s.d,0);
+  $("total").textContent="合計時間 "+fmt(t);
+}
+$("presets").innerHTML=Object.keys(P).map(n=>`<button>${n}</button>`).join("");
+$("presets").querySelectorAll("button").forEach(b=>b.onclick=()=>{Object.assign(cfg,P[b.textContent]);save();render()});
+
+function build(){
+  const q=[];
+  if(cfg.prep>0)q.push({t:"prep",d:cfg.prep});
+  for(let s=1;s<=cfg.sets;s++){
+    for(let r=1;r<=cfg.rounds;r++){
+      q.push({t:"work",d:cfg.work,r,s});
+      if(r<cfg.rounds&&cfg.rest>0)q.push({t:"rest",d:cfg.rest,r,s});
+    }
+    if(s<cfg.sets&&cfg.setrest>0)q.push({t:"setrest",d:cfg.setrest,s});
+  }
+  if(cfg.cool>0)q.push({t:"cool",d:cfg.cool});
+  return q;
+}
+
+let seq=[],idx=0,left=0,endAt=0,running=false,timer=null,lastSec=null,wake=null,ac=null;
+const bg={prep:"var(--c-prep)",work:"var(--c-work)",rest:"var(--c-rest)",setrest:"var(--c-setrest)",cool:"var(--c-cool)",done:"var(--c-done)"};
+
+function beep(f,ms){
+  if(!sound)return;
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();
+    const o=ac.createOscillator(),g=ac.createGain();o.frequency.value=f;o.connect(g);g.connect(ac.destination);
+    g.gain.setValueAtTime(.25,ac.currentTime);g.gain.exponentialRampToValueAtTime(.001,ac.currentTime+ms/1000);
+    o.start();o.stop(ac.currentTime+ms/1000);}catch(e){}
+}
+function vib(p){try{navigator.vibrate&&navigator.vibrate(p)}catch(e){}}
+let voice=null;
+function pickVoice(){
+  if(!window.speechSynthesis)return;
+  const vs=speechSynthesis.getVoices().filter(v=>/^ja/i.test(v.lang.replace("_","-")));
+  const male=/otoya|ichiro|hattori|keita|takumi|male|男/i;
+  const fem=/kyoko|o-ren|nanami|haruka|ayumi|sayaka|mizuki|female|女|google 日本語/i;
+  voice=vs.find(v=>fem.test(v.name))||vs.find(v=>!male.test(v.name))||vs[0]||null;
+}
+if(window.speechSynthesis){speechSynthesis.onvoiceschanged=pickVoice;pickVoice()}
+function primeVoice(){
+  if(!window.speechSynthesis)return;
+  pickVoice();
+  try{const u=new SpeechSynthesisUtterance(" ");u.volume=0;speechSynthesis.speak(u)}catch(e){}
+}
+function say(t){
+  if(!sound||!window.speechSynthesis)return false;
+  try{speechSynthesis.cancel();const u=new SpeechSynthesisUtterance(t);u.lang="ja-JP";if(voice)u.voice=voice;u.pitch=1.25;u.rate=1.1;speechSynthesis.speak(u);return true}catch(e){return false}
+}
+
+function show(){
+  const s=seq[idx];
+  const t=s?s.t:"done";
+  $("run").style.background=bg[t];
+  $("phase").textContent=COL[t];
+  $("time").textContent=s?fmt(left/1000):"🎉";
+  let info="";
+  if(s&&s.r)info=`ラウンド ${s.r}/${cfg.rounds}`+(cfg.sets>1?` ・ セット ${s.s}/${cfg.sets}`:"");
+  else if(!s)info="おつかれさまでした！";
+  $("info").textContent=info;
+  $("bar").firstElementChild.style.width=s?(100-left/(s.d*1000)*100)+"%":"100%";
+  const n=seq[idx+1];
+  $("next").textContent=n?`次：${COL[n.t]}（${fmt(n.d)}）`:(s?"これが最後です":"");
+  $("pp").textContent=running?"⏸":"▶";
+}
+function go(i,auto){
+  idx=Math.max(0,i);
+  if(idx>=seq.length){finish();return}
+  left=seq[idx].d*1000;endAt=Date.now()+left;lastSec=null;
+  if(auto!==false){const t=seq[idx].t;const w={work:"スタート",rest:"インターバル",setrest:"インターバル"}[t];if(!(w&&say(w)))beep(t==="work"?1000:600,350);vib(t==="work"?[200]:[100,60,100])}
+  show();
+}
+function tick(){
+  left=endAt-Date.now();
+  const sec=Math.ceil(left/1000);
+  if(sec!==lastSec){lastSec=sec;if(sec>0&&sec<=3){if(!say({3:"さん",2:"に",1:"いち"}[sec]))beep(800,120);vib(50)}}
+  if(left<=0){go(idx+1);return}
+  show();
+}
+function finish(){
+  running=false;clearInterval(timer);idx=seq.length;
+  beep(1200,200);setTimeout(()=>beep(1200,200),280);setTimeout(()=>beep(1500,500),560);vib([300,100,300,100,500]);
+  releaseWake();show();$("pp").textContent="↻";
+}
+async function getWake(){try{if(navigator.wakeLock)wake=await navigator.wakeLock.request("screen")}catch(e){}}
+function releaseWake(){try{wake&&wake.release();wake=null}catch(e){}}
+function play(){running=true;endAt=Date.now()+left;clearInterval(timer);timer=setInterval(tick,100);getWake();show()}
+function pause(){running=false;clearInterval(timer);left=endAt-Date.now();releaseWake();show()}
+
+$("start").onclick=()=>{
+  try{ac=ac||new (window.AudioContext||window.webkitAudioContext)();ac.resume()}catch(e){}
+  primeVoice();seq=build();$("setup").style.display="none";$("run").style.display="flex";try{const d=document.documentElement;d.requestFullscreen&&d.requestFullscreen().catch(()=>{})}catch(e){}
+  go(0);play();
+};
+$("pp").onclick=()=>{
+  if(idx>=seq.length){go(0);play();return}
+  running?pause():play();
+};
+$("skip").onclick=()=>{const was=running;go(idx+1);if(idx<seq.length&&was)play();else if(idx<seq.length){running=false;show()}};
+$("prev").onclick=()=>{const was=running;const elapsed=seq[idx]?seq[idx].d*1000-left:0;go(elapsed>2000&&idx<seq.length?idx:idx-1,false);if(was&&idx<seq.length)play();else{running=false;show()}};
+$("stop").onclick=()=>{try{document.fullscreenElement&&document.exitFullscreen()}catch(e){}running=false;clearInterval(timer);releaseWake();$("run").style.display="none";$("setup").style.display="block";render()};
+$("snd").onclick=()=>{sound=!sound;try{localStorage.setItem("wt-snd",sound?"1":"0")}catch(e){}$("snd").textContent="🔔 音:"+(sound?"ON":"OFF")};
+$("snd").textContent="🔔 音:"+(sound?"ON":"OFF");
+render();
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./sw.js').catch(() => {}));
+}
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && running) tick();
+});
+</script>
+</body>
+</html>
